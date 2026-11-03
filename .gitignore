@@ -1,0 +1,13 @@
+#Virtual environments
+venv/
+.venv/
+env/
+.env
+
+#Python caches
+__pycache__/
+*.py[cod]
+
+
+#Local FastF1/cache/generated
+f1_cache/
