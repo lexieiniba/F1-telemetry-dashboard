@@ -1,147 +1,113 @@
+import json
 
-def get_dashboard_html():
-    return """
+def get_dashboard_html(session_key: int, track_data: dict) -> str:
+    track_json = json.dumps(track_data)
+    
+    return f"""
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>F1 Telemetry HUD</title>
-        <!-- Tailwind CSS CDN -->
+        <title>F1 Telemetry Dashboard — Session {session_key}</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
-    <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col items-center justify-center p-6">
-
-        <div class="max-w-4xl w-full bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-8">
+    <body class= "#0C0C0A text-slate-100 font-sans min-h-screen p-6">
+        <div class="max-w-6xl mx-auto">
             <!-- Header -->
-            <div class="flex justify-between items-center border-b border-slate-800 pb-4 mb-8">
+            <header class="mb-6 pb-4 border-b border-slate-900 flex justify-between items-baseline">
                 <div>
-                    <h1 class="text-2xl font-black tracking-wider text-cyan-400">F1 TELEMETRY HUD</h1>
-                    <p class="text-xs text-slate-400">2024 Bahrain Grand Prix | Driver #1 (Max Verstappen)</p>
+                    <h1 class="text-sm font-bold font-mono tracking-wider text-slate-200 uppercase">Circuit Geometry & Telemetry Visualizer</h1>
+                    <p class="text-xs font-mono text-slate-600 mt-1">Session Key: {session_key}</p>
                 </div>
-                <div id="status-badge" class="px-3 py-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 text-xs font-bold rounded-full animate-pulse">
-                    LOADING DATA...
-                </div>
-            </div>
+                <a href="/" class="text-xs font-mono text-cyan-400 hover:underline">&larr; Back to Sessions</a>
+            </header>
 
-            <!-- Main Gauges Grid -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                <!-- Speed Card -->
-                <div class="bg-slate-950/50 border border-slate-800/80 rounded-xl p-6 flex flex-col justify-between">
-                    <span class="text-xs font-semibold tracking-widest text-slate-500">SPEED</span>
-                    <div class="flex items-baseline space-x-2 my-4">
-                        <span id="speed-val" class="text-6xl font-black tracking-tight text-cyan-300">0</span>
-                        <span class="text-lg font-bold text-slate-400">KM/H</span>
-                    </div>
-                </div>
+            <!-- Main Workspace Layout -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Track Canvas Viewport -->
+                <main class="lg:col-span-2 border border-slate-900 rounded bg-slate-900/20 p-4 flex flex-col items-center justify-center">
+                    <canvas id="trackCanvas" width="700" height="600" class="bg-slate-950 rounded border border-slate-900"></canvas>
+                </main>
 
-                <!-- Gear Card -->
-                <div class="bg-slate-950/50 border border-slate-800/80 rounded-xl p-6 flex flex-col justify-between">
-                    <span class="text-xs font-semibold tracking-widest text-slate-500">GEAR</span>
-                    <div class="my-4">
-                        <span id="gear-val" class="text-6xl font-black tracking-tight text-white">N</span>
+                <!-- Telemetry Control / Info Panel -->
+                <aside class="border border-slate-900 rounded bg-slate-900/20 p-4 flex flex-col justify-between font-mono">
+                    <div>
+                        <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-900 pb-2">Session Telemetry</h2>
+                        <div id="telemetryStats" class="space-y-3 text-xs text-slate-300">
+                            <p class="text-slate-600">Waiting for telemetry stream...</p>
+                        </div>
                     </div>
-                </div>
-            </div>
-
-            <!-- Telemetry Bars -->
-            <div class="space-y-6 bg-slate-950/50 border border-slate-800/80 rounded-xl p-6">
-                <!-- Throttle -->
-                <div>
-                    <div class="flex justify-between text-xs font-bold mb-2">
-                        <span class="text-slate-400">THROTTLE</span>
-                        <span id="throttle-text" class="text-emerald-400">0%</span>
+                    <div class="mt-6 pt-4 border-t border-slate-900 text-xs text-slate-600">
+                        OpenF1 Live Stream &bull; Canvas Engine Active
                     </div>
-                    <div class="w-full bg-slate-800 h-4 rounded-full overflow-hidden p-0.5">
-                        <div id="throttle-bar" class="bg-emerald-500 h-full rounded-full transition-all duration-75" style="width: 0%"></div>
-                    </div>
-                </div>
-
-                <!-- Brake -->
-                <div>
-                    <div class="flex justify-between text-xs font-bold mb-2">
-                        <span class="text-slate-400">BRAKE</span>
-                        <span id="brake-text" class="text-rose-400">OFF</span>
-                    </div>
-                    <div class="w-full bg-slate-800 h-4 rounded-full overflow-hidden p-0.5">
-                        <div id="brake-bar" class="bg-rose-500 h-full rounded-full transition-all duration-75" style="width: 0%"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Playback Controls -->
-            <div class="flex justify-center mt-8 space-x-4">
-                <button onclick="togglePlayback()" id="play-btn" class="px-6 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-xl transition-all shadow-lg shadow-cyan-500/20">
-                    Play Dashboard
-                </button>
+                </aside>
             </div>
         </div>
 
         <script>
-            let telemetryData = [];
-            let currentIndex = 0;
-            let isPlaying = false;
-            let timer = null;
+            // Injected track geometry payload from Python backend
+            const trackData = {track_json};
 
-            async function fetchTelemetry() {
-                try {
-                    let response = await fetch('/api/telemetry');
-                    telemetryData = await response.json();
-                    document.getElementById('status-badge').innerText = "LIVE READY";
-                    document.getElementById('status-badge').className = "px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold rounded-full";
-                } catch (err) {
-                    console.error("Failed to load telemetry:", err);
-                    document.getElementById('status-badge').innerText = "ERROR";
-                }
-            }
+            const canvas = document.getElementById('trackCanvas');
+            const ctx = canvas.getContext('2d');
 
-            function updateHUD() {
-                if (telemetryData.length === 0) return;
+            function renderMap() {{
+                if (!trackData.has_real_track) {{
+                    ctx.fillStyle = '#64748b';
+                    ctx.font = '14px monospace';
+                    ctx.fillText('No track geometry available for this session.', 40, 50);
+                    return;
+                }}
 
-                if (currentIndex >= telemetryData.length) {
-                    currentIndex = 0; // Loop playback when finished
-                }
+                const bounds = trackData.bounds;
+                const minX = bounds.min_x, maxX = bounds.max_x;
+                const minY = bounds.min_y, maxY = bounds.max_y;
 
-                let row = telemetryData[currentIndex];
-                
-                // Read fields safely supporting both lowercase OpenF1 keys and capitalized variants
-                let speed = Math.round(row.speed ?? row.Speed ?? 0);
-                let throttle = Math.round(row.throttle ?? row.Throttle ?? 0);
-                
-                let rawBrake = row.brake ?? row.Brake ?? 0;
-                let isBraking = rawBrake > 0;
-                
-                let gearVal = row.n_gear ?? row.gear ?? row.Gear ?? 0;
-                let gear = gearVal === 0 ? 'N' : gearVal;
+                const trackWidth = maxX - minX;
+                const trackHeight = maxY - minY;
 
-                // Apply updates to DOM elements
-                document.getElementById('speed-val').innerText = speed;
-                document.getElementById('gear-val').innerText = gear;
-                
-                document.getElementById('throttle-text').innerText = throttle + '%';
-                document.getElementById('throttle-bar').style.width = throttle + '%';
-                
-                document.getElementById('brake-text').innerText = isBraking ? 'ACTIVE' : 'OFF';
-                document.getElementById('brake-bar').style.width = (isBraking ? 100 : 0) + '%';
+                const padding = 50;
+                const scaleX = (canvas.width - padding * 2) / (trackWidth || 1);
+                const scaleY = (canvas.height - padding * 2) / (trackHeight || 1);
+                const scale = Math.min(scaleX, scaleY);
 
-                currentIndex++;
-            }
+                function toScreen(x, y) {{
+                    return {{
+                        x: padding + (x - minX) * scale,
+                        y: canvas.height - (padding + (y - minY) * scale)
+                    }};
+                }}
 
-            function togglePlayback() {
-                isPlaying = !isPlaying;
-                let btn = document.getElementById('play-btn');
-                if (isPlaying) {
-                    btn.innerText = "Pause";
-                    btn.className = "px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl transition-all shadow-lg shadow-amber-500/20";
-                    timer = setInterval(updateHUD, 40); // ~25 FPS telemetry loop
-                } else {
-                    btn.innerText = "Resume";
-                    btn.className = "px-6 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-xl transition-all shadow-lg shadow-cyan-500/20";
-                    clearInterval(timer);
-                }
-            }
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            fetchTelemetry();
+                // Helper to draw polylines
+                function drawPolyline(xs, ys, color, lineWidth) {{
+                    if (!xs || xs.length === 0) return;
+                    ctx.beginPath();
+                    for (let i = 0; i < xs.length; i++) {{
+                        const pt = toScreen(xs[i], ys[i]);
+                        if (i === 0) ctx.moveTo(pt.x, pt.y);
+                        else ctx.lineTo(pt.x, pt.y);
+                    }}
+                    ctx.closePath();
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = lineWidth;
+                    ctx.stroke();
+                }}
+
+                // 1. Draw outer boundary wall
+                drawPolyline(trackData.outer_xs, trackData.outer_ys, '#334155', 2);
+
+                // 2. Draw inner boundary wall
+                drawPolyline(trackData.inner_xs, trackData.inner_ys, '#334155', 2);
+
+                // 3. Draw center line
+                drawPolyline(trackData.center_xs, trackData.center_ys, '#0891b2', 1);
+            }}
+
+            // Initial render call
+            renderMap();
         </script>
     </body>
     </html>

@@ -1,6 +1,6 @@
 
 def get_races_html(sessions: list) -> str:
-    """Generates a minimal, low-distraction HTML page displaying all race sessions."""
+    """Generates HTML page displaying all race sessions."""
     
     rows_html = ""
     
@@ -9,7 +9,7 @@ def get_races_html(sessions: list) -> str:
         circuit = s.get('circuit_short_name', s.get('location', 'Circuit'))
         session_name = s.get('session_name', 'Race')
         session_key = s.get('session_key')
-        
+
         date_str = s.get('date_start', '')
         date_formatted = date_str.split('T')[0] if 'T' in date_str else date_str
         

@@ -1,9 +1,8 @@
 import math
-from src.f1_data import load_driver_locations
+from src.f1_data import load_driver_location
 
 class TrackGeometryProcessor:
-    """Processes raw F1 location coordinates into normalized track vectors 
-    with cumulative fractional distances (0.0 to 1.0)."""
+    #Process location coordinates into vectors
 
     def __init__(self, session_key: int, driver_number: int = 1):
         self.session_key = session_key
@@ -15,7 +14,7 @@ class TrackGeometryProcessor:
         self._load_and_process()
 
     def _load_and_process(self, rotation_deg: float = 0.0):
-        raw_locations = load_driver_locations(self.session_key, self.driver_number)
+        raw_locations = load_driver_location(self.session_key, self.driver_number)
         if not raw_locations:
             return
 
@@ -54,7 +53,7 @@ class TrackGeometryProcessor:
         self.cum_fracs = [d / total for d in cum]
         self.has_real_track = True
 
-    def get_payload(self) -> dict:
+    def get_payload(self):
         return {
             "has_real_track": self.has_real_track,
             "center_xs": self.center_xs,
