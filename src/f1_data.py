@@ -36,16 +36,36 @@ def load_session(grand_prix: str | int, session_type: str, year: int = None):
         
     url = f"{OPENF1_BASE}/sessions?year={year}&country_name={grand_prix}&session_name={session_type}"
     req = Request(url, headers=HEADERS)
-    
-    with urlopen(req) as response:
-        data = json.loads(response.read().decode())
+
+    try:
+        with urlopen(req) as response:
+             data = json.loads(response.read().decode())
+    except Exception:
+        data = []
         
     if not data:
         raise ValueError(f"No session found for {year} {grand_prix} {session_type}")
         
     return data[0]
 
-def load_driver_location(session_key: int, driver_number: int = 1):
+def get_winning_driver(session_key: int):
+    url = f"{OPENF1_BASE}/position?session_key={session_key}"
+    req = Request(url, headers=HEADERS)
+    try:
+        with urlopen(req) as response:
+            positions = json.loads(response.read().decode('utf-8'))
+
+        leaders = [p for p in positions if p.get('position') == 1]
+        if leaders:
+            return leaders[-1]['driver_number']
+    except Exception:
+        pass
+    return 1
+
+def load_driver_location(session_key: int, driver_number: int | None = None):
+    if driver_number is None:
+        driver_number = get_winning_driver(session_key)
+
     #fetch third lap and find time window
     laps_url = f"{OPENF1_BASE}/laps?session_key={session_key}&driver_number={driver_number}"
     req_laps = Request(laps_url, headers = HEADERS)
@@ -53,6 +73,7 @@ def load_driver_location(session_key: int, driver_number: int = 1):
     with urlopen(req_laps) as response:
         laps = json.loads(response.read().decode('utf-8'))
 
+    #if driver didn't complete enough laps in session, fallback gr
     #grap lap 3 (index 2) asumming the driver completed at least 3 laps
     start_time = laps[2]['date_start']
     end_time = laps[3]['date_start']

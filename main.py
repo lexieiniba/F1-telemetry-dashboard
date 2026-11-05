@@ -4,6 +4,7 @@ from src.f1_data import load_session, load_driver_telemetry, get_available_sessi
 from src.interfaces.race_selection import get_races_html
 from src.interfaces.dashboard import get_dashboard_html
 from src.insights.track_position_window import get_track_visualization_payload
+import traceback
 
 app = FastAPI(title="F1 Telemetry Dashboard")
 
@@ -61,8 +62,9 @@ def list_races():
 @app.get("/dashboard/{session_key}", response_class=HTMLResponse)
 async def dashboard_view(session_key: int, request: Request):
     try:
-        track_data = get_track_visualization_payload(session_key, driver_number=1)
+        track_data = get_track_visualization_payload(session_key, driver_number = None)
         return get_dashboard_html(session_key, track_data)
 
     except Exception as e:
-        raise HTTPException(status_code=500, details=str(e))
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))

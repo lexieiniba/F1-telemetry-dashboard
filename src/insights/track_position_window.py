@@ -67,6 +67,6 @@ class TrackGeometryProcessor:
             }
         }
 
-def get_track_visualization_payload(session_key: int, driver_number: int = 1) -> dict:
+def get_track_visualization_payload(session_key: int, driver_number: int | None = None):
     processor = TrackGeometryProcessor(session_key, driver_number)
     return processor.get_payload()
