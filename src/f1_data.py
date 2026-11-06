@@ -87,9 +87,27 @@ def load_driver_location(session_key: int, driver_number: int | None = None):
         raw_data = json.loads(response.read().decode('utf-8'))
     
     return [
-            {'x': pt.get('x'), 'y': pt.get('y'), 'z': pt.get('z', 0)}
-            for pt in raw_data if  pt.get('x') is not None and pt.get('y') is not None
+            {'x': pt.get('x'), 'y': pt.get('y'), 'z': pt.get('z', 0.0)}
+            for pt in raw_data
+            if pt.get('x') is not None and pt.get('y') is not None and pt.get('z') is not None
         ]
+
+def get_session_leaderboard(session_key: int):
+    drivers_url = f"{OPENF1_BASE}/drivers?session_key={session_key}"
+    req = Request(drivers_url, headers=HEADERS)
+    with urlopen(req) as response:
+        drivers = json.loads(response.read().decode('utf-8'))
+    
+    # Sort or map drivers; for a static or live list, you can pull position data or display acronyms
+    leaderboard = [
+        {
+            "driver_number": d.get("driver_number"),
+            "acronym": d.get("name_acronym", "---"),
+            "team": d.get("team_name", "")
+        }
+        for d in drivers
+    ]
+    return leaderboard
 
 def load_driver_telemetry(session_key: int, driver_number: int = 1) -> pd.DataFrame:
     url = f"{OPENF1_BASE}/car_data?session_key={session_key}&driver_number={driver_number}"
@@ -110,3 +128,7 @@ def load_driver_telemetry(session_key: int, driver_number: int = 1) -> pd.DataFr
         })
         
     return df
+
+if __name__ == '_main__':
+    session_key = 11245
+    print( get_session_leaderboard(session_key))
