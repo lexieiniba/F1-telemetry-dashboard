@@ -48,6 +48,29 @@ def load_session(grand_prix: str | int, session_type: str, year: int = None):
         
     return data[0]
 
+
+def load_driver_location(session_key: int, driver_number: int, start_time: str = None, end_time: str = None):
+    #fetch location coordinates (X, Y, Z) bounded by timestamps
+    loc_url = f"{OPENF1_BASE}/location?session_key={session_key}&driver_number={driver_number}"
+    if start_time and end_time:
+        loc_url += f"&date>={start_time}&date<={end_time}"
+
+    req_loc = Request(loc_url, headers=HEADERS)
+    with urlopen(req_loc) as response:
+        raw_data = json.loads(response.read().decode('utf-8'))
+    
+    return [
+        {
+            'x': pt.get('x'), 
+            'y': pt.get('y'), 
+            'z': pt.get('z', 0.0),
+            'date': pt.get('date'),
+            'driver_number': driver_number
+        }
+        for pt in raw_data
+        if pt.get('x') is not None and pt.get('y') is not None
+    ]
+
 def get_winning_driver(session_key: int):
     url = f"{OPENF1_BASE}/position?session_key={session_key}"
     req = Request(url, headers=HEADERS)
@@ -62,43 +85,27 @@ def get_winning_driver(session_key: int):
         pass
     return 1
 
-def load_driver_location(session_key: int, driver_number: int | None = None):
-    if driver_number is None:
-        driver_number = get_winning_driver(session_key)
+def map_circuit_coordinates(session_key: int, driver_number: int | None = None):
+    winner_num = driver_number if driver_number is not None else get_winning_driver(session_key)
 
-    #fetch third lap and find time window
-    laps_url = f"{OPENF1_BASE}/laps?session_key={session_key}&driver_number={driver_number}"
+    laps_url = f"{OPENF1_BASE}/laps?session_key={session_key}&driver_number={winner_num}"
     req_laps = Request(laps_url, headers = HEADERS)
-
     with urlopen(req_laps) as response:
         laps = json.loads(response.read().decode('utf-8'))
 
-    #if driver didn't complete enough laps in session, fallback gr
-    #grap lap 3 (index 2) asumming the driver completed at least 3 laps
     start_time = laps[2]['date_start']
     end_time = laps[3]['date_start']
 
-    #fetch location coordinates (X, Y, Z) bounded by timestamps
+    return load_driver_location(session_key, winner_num, start_time, end_time)
 
-    loc_url = f"{OPENF1_BASE}/location?session_key={session_key}&driver_number={driver_number}&date>={start_time}&date<={end_time}"
-    req_loc = Request(loc_url, headers=HEADERS)
 
-    with urlopen(req_loc) as response:
-        raw_data = json.loads(response.read().decode('utf-8'))
-    
-    return [
-            {'x': pt.get('x'), 'y': pt.get('y'), 'z': pt.get('z', 0.0)}
-            for pt in raw_data
-            if pt.get('x') is not None and pt.get('y') is not None and pt.get('z') is not None
-        ]
-
-def get_session_leaderboard(session_key: int):
+def get_session_leaderboard(session_key: int, target_timestamp: str = None):
     drivers_url = f"{OPENF1_BASE}/drivers?session_key={session_key}"
     req = Request(drivers_url, headers=HEADERS)
     with urlopen(req) as response:
         drivers = json.loads(response.read().decode('utf-8'))
-    
-    # Sort or map drivers; for a static or live list, you can pull position data or display acronyms
+
+    # Sort and map drivers 
     leaderboard = [
         {
             "driver_number": d.get("driver_number"),
@@ -129,6 +136,6 @@ def load_driver_telemetry(session_key: int, driver_number: int = 1) -> pd.DataFr
         
     return df
 
-if __name__ == '_main__':
+if __name__ == '__main__':
     session_key = 11245
-    print( get_session_leaderboard(session_key))
+    print(get_session_leaderboard(session_key))

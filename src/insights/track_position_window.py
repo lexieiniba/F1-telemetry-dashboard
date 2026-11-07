@@ -1,5 +1,5 @@
 import math
-from src.f1_data import load_driver_location
+from src.f1_data import map_circuit_coordinates
 
 class TrackGeometryProcessor:
     #Process location coordinates into vectors
@@ -14,7 +14,7 @@ class TrackGeometryProcessor:
         self._load_and_process()
 
     def _load_and_process(self, rotation_deg: float = 0.0):
-        raw_locations = load_driver_location(self.session_key, self.driver_number)
+        raw_locations = map_circuit_coordinates(self.session_key, self.driver_number)
         if not raw_locations:
             return
 
