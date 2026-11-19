@@ -1,5 +1,6 @@
 import math
-from src.f1_data import map_circuit_coordinates
+from src.f1_data import map_circuit_coordinates, load_session
+from src.lib.cache import load_json, save_json
 
 class TrackGeometryProcessor:
     #Process location coordinates into vectors
@@ -14,6 +15,7 @@ class TrackGeometryProcessor:
         self._load_and_process()
 
     def _load_and_process(self, rotation_deg: float = 0.0):
+        from src.f1_data import map_circuit_coordinates
         raw_locations = map_circuit_coordinates(self.session_key, self.driver_number)
         if not raw_locations:
             return
@@ -68,5 +70,13 @@ class TrackGeometryProcessor:
         }
 
 def get_track_visualization_payload(session_key: int, driver_number: int | None = None):
-    processor = TrackGeometryProcessor(session_key, driver_number)
-    return processor.get_payload()
+    session = load_session(session_key=session_key)
+    cache_name = f"track{session['circuit_key']}_{session['year']}"
+    cached = load_json(cache_name)
+    if cached:
+        return cached
+
+    payload = TrackGeometryProcessor(session_key, driver_number).get_payload()
+    if payload["has_real_track"]:
+        save_json(cache_name, payload)
+    return payload

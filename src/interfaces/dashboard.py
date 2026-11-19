@@ -2,7 +2,7 @@ import json
 
 def get_dashboard_html(session_key: int, track_data: dict) -> str:
     track_json = json.dumps(track_data)
-    
+
     return f"""
     <!DOCTYPE html>
     <html lang="en">

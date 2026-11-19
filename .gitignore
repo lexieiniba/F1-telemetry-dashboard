@@ -10,4 +10,4 @@ __pycache__/
 
 
 #Local FastF1/cache/generated
-f1_cache/
+cache/

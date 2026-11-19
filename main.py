@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from src.f1_data import load_session, load_driver_telemetry, get_available_sessions
+from src.f1_data import load_session, load_driver_telemetry, get_available_sessions, get_session_leaderboard
 from src.interfaces.race_selection import get_races_html
 from src.interfaces.dashboard import get_dashboard_html
 from src.insights.track_position_window import get_track_visualization_payload
