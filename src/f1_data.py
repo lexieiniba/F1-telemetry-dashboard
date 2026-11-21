@@ -6,6 +6,7 @@ import json
 import pandas as pd
 from src.lib.settings import setup_cache
 from src.lib.season import get_season
+from src.lib.cache import load_json, save_json
 
 setup_cache()
 
@@ -49,7 +50,8 @@ def load_session(grand_prix: str | int = None, session_type: str = None, year: i
     try:
         with urlopen(req) as response:
              data = json.loads(response.read().decode())
-    except Exception:
+    except Exception as e:
+        print(f"load_session error: {e}")
         data = []
         
     if not data:
@@ -118,6 +120,70 @@ def map_circuit_coordinates(session_key: int, driver_number: int | None = None):
 
     return load_driver_location(session_key, driver, start.isoformat(), end.isoformat())
 
+def get_session_drivers(session_key: int):
+    cached = load_json(f"driverinfo_{session_key}")
+    if cached:
+        return cached
+
+    url =f"{OPENF1_BASE}/drivers?session_key={session_key}"
+    req = Request(url, headers=HEADERS)
+    with urlopen(req) as response:
+        data = json.loads(response.read().decode('utf-8'))
+
+    drivers = [
+        {
+            "driver_number": d.get("driver_number"),
+            "acronym": d.get("name_acronym", "---"),
+            "team": d.get("team_name", ""),
+            "team_colour": d.get("team_colour") or "64748b",
+        }
+        for d in data if d.get("driver_number")
+    ]
+
+    if drivers:
+        save_json(f"driverinfo_{session_key}", drivers)
+    return drivers
+
+def get_driver_locations_window(session_key: int, offset: int = 0, duration: int = 120, step: int = 2):
+    # Positions of ALL drivers for a short time window, using a single API request
+    # (the free API only allows ~30 requests per minute, so we never loop over drivers).
+    # offset = seconds after the session start, duration = length of the window in seconds.
+    duration = min(duration, 300)  # keep the response a reasonable size
+    cache_name = f"locations_{session_key}_{offset}_{duration}"
+    cached = load_json(cache_name)
+    if cached:
+        return cached
+
+    session = load_session(session_key=session_key)
+    start = pd.Timestamp(session['date_start']) + pd.Timedelta(seconds=offset)
+    end = start + pd.Timedelta(seconds=duration)
+
+    url = (
+        f"{OPENF1_BASE}/location?session_key={session_key}"
+        f"&date>={quote(start.isoformat(), safe='')}&date<={quote(end.isoformat(), safe='')}"
+    )
+    req = Request(url, headers=HEADERS)
+    with urlopen(req) as response:
+        raw = json.loads(response.read().decode('utf-8'))
+
+    by_driver = {}
+    for pt in raw:
+        if pt.get('x') is None or pt.get('y') is None or pt.get('driver_number') is None:
+            continue
+        seconds = (pd.Timestamp(pt['date']) - start).total_seconds()
+        by_driver.setdefault(str(pt['driver_number']), []).append(
+            {'t': round(seconds, 2), 'x': pt['x'], 'y': pt['y']}
+        )
+
+    # sort by time, then keep every `step`-th point to shrink the data
+    result = {}
+    for number, points in by_driver.items():
+        points.sort(key=lambda p: p['t'])
+        result[number] = points[::step]
+
+    if result:
+        save_json(cache_name, result)
+    return result
 
 def get_session_leaderboard(session_key: int, start_time: str, end_time: str):
     from src.insights.track_position_window import TrackGeometryProcessor

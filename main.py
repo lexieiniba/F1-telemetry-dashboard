@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from src.f1_data import load_session, load_driver_telemetry, get_available_sessions, get_session_leaderboard
+from src.f1_data import load_session, load_driver_telemetry, get_available_sessions, get_session_leaderboard, get_session_drivers, get_driver_locations_window
 from src.interfaces.race_selection import get_races_html
 from src.interfaces.dashboard import get_dashboard_html
 from src.insights.track_position_window import get_track_visualization_payload
@@ -9,6 +9,7 @@ import traceback
 app = FastAPI(title="F1 Telemetry Dashboard")
 
 TELEMETRY_CACHE = []
+
 
 @app.on_event('startup')
 def startup_event():
@@ -44,6 +45,7 @@ def startup_event():
     except Exception as e:
         print(f'Error loading telemetry {e}')
 
+
 @app.get("/api/telemetry")
 def get_telemetry():
     if not TELEMETRY_CACHE:
@@ -65,6 +67,18 @@ async def dashboard_view(session_key: int, request: Request):
         track_data = get_track_visualization_payload(session_key, driver_number = None)
         return get_dashboard_html(session_key, track_data)
 
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/drivers/{session_key}")
+def drivers_endpoint(session_key: int):
+    return get_session_drivers(session_key)
+
+@app.get("/api/locations/{session_key}")
+def locations_enpoint(session_key: int, offset: int = 0, duration: int = 120):
+    try:
+        return get_driver_locations_window(session_key, offset, duration)
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
