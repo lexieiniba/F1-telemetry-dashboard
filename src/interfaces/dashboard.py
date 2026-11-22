@@ -34,6 +34,7 @@ def get_dashboard_html(session_key: int, track_data: dict) -> str:
                         <span id="timeLabel" class="w-14">0.0 s</span>
                         <input id="timeSlider" type="range" min="0" max="120" step="0.1" value="0" class="flex-1">
                     </div>
+                    <p id="statusMsg" class="w-full mt-2 text-xs font-mono text-slate-600 h-4"></p>
                 </main>
 
                 <!-- Telemetry Control / Info Panel -->
@@ -105,13 +106,13 @@ def get_dashboard_html(session_key: int, track_data: dict) -> str:
                     ctx.stroke();
                 }}
 
-                // 1. Draw outer boundary wall
+                // Draw outer boundary wall
                 drawPolyline(trackData.outer_xs, trackData.outer_ys, '#334155', 2);
 
-                // 2. Draw inner boundary wall
+                // Draw inner boundary wall
                 drawPolyline(trackData.inner_xs, trackData.inner_ys, '#334155', 2);
 
-                // 3. Draw center line
+                // Draw center line
                 drawPolyline(trackData.center_xs, trackData.center_ys, '#0891b2', 1);
             }}
 

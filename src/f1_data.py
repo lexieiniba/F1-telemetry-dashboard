@@ -60,6 +60,8 @@ def load_session(grand_prix: str | int = None, session_type: str = None, year: i
     if not data:
         raise ValueError(f"No session found for {year} {grand_prix} {session_type}")
 
+    if session_key is not None:
+        save_json(f"session_{session_key}", data[0])
     return data[0]
 
 
@@ -147,6 +149,16 @@ def get_session_drivers(session_key: int):
         save_json(f"driverinfo_{session_key}", drivers)
     return drivers
 
+WINDOW_SECONDS = 120
+def get_session_duration(session_key: int):
+    saved = load_json(f"duration_{session_key}")
+    if saved:
+        return saved["duration"]
+    session = load_session(session_key=session_key)
+    start = pd.Timestamp(session['date_start'])
+    end = pd.Timestamp(session['date_end'])
+    return int((end - start).total_seconds())
+
 def get_driver_locations_window(session_key: int, offset: int = 0, duration: int = 120, step: int = 2):
     # Positions of ALL drivers for a short time window, using a single API request
     # (the free API only allows ~30 requests per minute, so we never loop over drivers).
@@ -156,6 +168,9 @@ def get_driver_locations_window(session_key: int, offset: int = 0, duration: int
     cached = load_json(cache_name)
     if cached:
         return cached
+    if load_json(f"duration_{session_key}") is not None:
+        return {}
+    
 
     session = load_session(session_key=session_key)
     start = pd.Timestamp(session['date_start']) + pd.Timedelta(seconds=offset)
