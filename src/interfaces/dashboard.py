@@ -27,11 +27,20 @@ def get_dashboard_html(session_key: int, track_data: dict) -> str:
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <!-- Track Canvas Viewport -->
                 <main class="lg:col-span-2 border border-slate-900 rounded bg-slate-900/20 p-4 flex flex-col items-center justify-center">
-                    <canvas id="trackCanvas" width="700" height="600" class="bg-slate-950 rounded border border-slate-900"></canvas>
+                    <div class="relative">
+                        <canvas id="trackCanvas" width="700" height="600" class="bg-slate-950 rounded border border-slate-900 max-w-full h-auto"></canvas>
+                    </div>
+                    <div class="w-full mt-4 flex items-center gap-3 text-xs font-mono text-slate-400">
+                        <span id="timeLabel" class="w-14">0.0 s</span>
+                        <input id="timeSlider" type="range" min="0" max="120" step="0.1" value="0" class="flex-1">
+                    </div>
                 </main>
 
                 <!-- Telemetry Control / Info Panel -->
                 <aside class="border border-slate-900 rounded bg-slate-900/20 p-4 flex flex-col justify-between font-mono">
+                    <div class="mb-4">
+                        <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 border-b border-slate-900 pb-2">Drivers</h2>
+                        <ul id="driverList" class="space y-1 test-xs"></ul?
                     <div>
                         <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-900 pb-2">Session Telemetry</h2>
                         <div id="telemetryStats" class="space-y-3 text-xs text-slate-300">
@@ -109,6 +118,7 @@ def get_dashboard_html(session_key: int, track_data: dict) -> str:
             // Initial render call
             renderMap();
         </script>
+        <script src="/static/drivers.js"></script>
     </body>
     </html>
     """

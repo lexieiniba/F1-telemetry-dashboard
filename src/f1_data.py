@@ -40,6 +40,9 @@ def get_available_sessions(season: int | None = None):
 def load_session(grand_prix: str | int = None, session_type: str = None, year: int = None, session_key: int = None):
     # Look up a session either by session_key, or by country + session type + year
     if session_key is not None:
+        cached = load_json(f"session_{session_key}")
+        if cached:
+            return cached
         url = f"{OPENF1_BASE}/sessions?session_key={session_key}"
     else:
         if year is None:
@@ -56,7 +59,7 @@ def load_session(grand_prix: str | int = None, session_type: str = None, year: i
         
     if not data:
         raise ValueError(f"No session found for {year} {grand_prix} {session_type}")
-        
+
     return data[0]
 
 
