@@ -149,6 +149,36 @@ def get_session_drivers(session_key: int):
         save_json(f"driverinfo_{session_key}", drivers)
     return drivers
 
+def get_session_positions(session_key: int):
+    #Every position change in the session as [seconds since session start, driver_number, position]
+    #One request for the entire session
+    cache_name = f"positions_{session_key}"
+    cached = load_json(cache_name)
+    if cached:
+        return cached
+
+    session = load_session(session_key=session_key)
+    start = pd.Timestamp(session['date_start'])
+
+    url = f"{OPENF1_BASE}/position?session_key={session_key}"
+    req = Request(url, headers=HEADERS)
+    with urlopen(req) as response:
+        raw = json.loads(response.read().decode('utf-8'))
+        
+    changes = []
+    for row in raw:
+        if row.get('date') is None or row.get('driver_number') is None or row.get('position') is None:
+            continue
+        seconds = (pd.Timestamp(row['date']) - start).total_seconds()
+        changes.append([round(seconds, 1), row['driver_number'], row['position']])
+    changes.sort()
+
+    if changes:
+        save_json(cache_name, changes)
+    return changes
+
+
+                                                
 WINDOW_SECONDS = 120
 def get_session_duration(session_key: int):
     saved = load_json(f"duration_{session_key}")

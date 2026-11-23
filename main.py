@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from src.f1_data import load_session, load_driver_telemetry, get_available_sessions, get_session_leaderboard, get_session_drivers, get_driver_locations_window, get_session_duration, WINDOW_SECONDS
+from src.f1_data import load_session, load_driver_telemetry, get_available_sessions, get_session_leaderboard, get_session_drivers, get_driver_locations_window, get_session_duration, WINDOW_SECONDS, get_session_positions
 from src.interfaces.race_selection import get_races_html
 from src.interfaces.dashboard import get_dashboard_html
 from src.insights.track_position_window import get_track_visualization_payload
@@ -60,6 +60,15 @@ def locations_enpoint(session_key: int, offset: int = 0, duration: int = 120):
 def session_endpoint(session_key: int):
     try:
         return {"duration": get_session_duration(session_key), "window": WINDOW_SECONDS}
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+        
+        
+@app.get("/api/positions/{session_key}")
+def positions_endpoint(session_key: int):
+    try:
+        return get_session_positions(session_key)
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

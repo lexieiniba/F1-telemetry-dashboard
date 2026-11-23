@@ -67,4 +67,4 @@ if __name__ == "__main__":
     warm_calls = max(r[1] for r in runs)
     print(f"With saved data (average of 5): {warm_seconds * 1000:.1f} ms, {warm_calls} OpenF1 requests")
     if warm_seconds > 0:
-        print(f"About {cold_seconds / warm_seconds:.0f}x faster")
+        print(f"About {cold_seconds / warm_seconds:.0f}x faster")   

@@ -12,7 +12,7 @@ def get_dashboard_html(session_key: int, track_data: dict) -> str:
         <title>F1 Telemetry Dashboard — Session {session_key}</title>
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
-    <body class= "#0C0C0A text-slate-100 font-sans min-h-screen p-6">
+    <body class= "bg-[#0C0C0A] text-slate-100 font-sans min-h-screen p-6">
         <div class="max-w-6xl mx-auto">
             <!-- Header -->
             <header class="mb-6 pb-4 border-b border-slate-900 flex justify-between items-baseline">
@@ -31,8 +31,16 @@ def get_dashboard_html(session_key: int, track_data: dict) -> str:
                         <canvas id="trackCanvas" width="700" height="600" class="bg-slate-950 rounded border border-slate-900 max-w-full h-auto"></canvas>
                     </div>
                     <div class="w-full mt-4 flex items-center gap-3 text-xs font-mono text-slate-400">
-                        <span id="timeLabel" class="w-14">0.0 s</span>
-                        <input id="timeSlider" type="range" min="0" max="120" step="0.1" value="0" class="flex-1">
+                        <button id="playBtn" class="w-16 px-2 py-1 rounded border border-slate-700 bg-slate-900 text-slate-200">Play</button>
+                        <span id="timeLabel" class="w-14">0:00</span>
+                        <input id="timeSlider" type="range" min="0" max="120" step="0.5" value="0" class="flex-1">
+                        <select id="speedSelect" class="bg-slate-900 border border-slate-700 rounded px-1 py-1 text-slate-200">
+                            <option value="0.5">0.5x</option>
+                            <option value="1">1x</option>
+                            <option value="5" selected>5x</option>
+                            <option value="20">20x</option>
+                            <option value="60">60x</option>
+                        </select>
                     </div>
                     <p id="statusMsg" class="w-full mt-2 text-xs font-mono text-slate-600 h-4"></p>
                 </main>
