@@ -18,6 +18,8 @@ from src.f1_data import (
     get_driver_locations_window,
     get_session_drivers,
     get_session_duration,
+    get_race_start,
+    get_session_positions,
     load_session,
 )
 from src.insights.track_position_window import get_track_visualization_payload
@@ -67,6 +69,14 @@ def build(session_key: int, pause: float = PAUSE):
     call_api("drivers", get_session_drivers, session_key)
     time.sleep(pause)
 
+    print("Positions...")
+    call_api("positions", get_session_positions, session_key)
+    time.sleep(pause)
+
+    print("Race start time...")
+    call_api("race start", get_race_start, session_key)
+    time.sleep(pause)
+
     print("Track outline...")
     track = call_api("track", get_track_visualization_payload, session_key)
     time.sleep(pause)
@@ -90,13 +100,23 @@ def build(session_key: int, pause: float = PAUSE):
         print(f"  window {i + 1}/{windows} {'saved' if result else 'no data'}")
         time.sleep(pause)
 
+    # The scheduled end time is longer than the race, so remember where the data really ends.
+    with_data = [
+        i for i in range(windows)
+        if load_json(f"locations_{session_key}_{i * WINDOW_SECONDS}_{WINDOW_SECONDS}") is not None
+    ]
+    if with_data:
+        real_duration = (max(with_data) + 1) * WINDOW_SECONDS
+        save_json(f"duration_{session_key}", {"duration": real_duration})
+        print(f"Race data ends after about {real_duration // 60} minutes")
+
     copy_to_data(session_key, f"track{session['circuit_key']}_{session['year']}")
     print(f"Done: {saved} windows downloaded, {skipped} already saved, {empty} with no data.")
 
 
 def copy_to_data(session_key: int, track_name: str):
     os.makedirs(DATA_DIR, exist_ok=True)
-    names = [f"session_{session_key}", f"driverinfo_{session_key}", track_name]
+    names = [f"session_{session_key}", f"driverinfo_{session_key}", f"duration_{session_key}", f"positions_{session_key}", f"racestart_{session_key}", track_name]
     files = [os.path.join(CACHE_DIR, f"{n}.json") for n in names]
     files += glob.glob(os.path.join(CACHE_DIR, f"locations_{session_key}_*.json"))
     total = 0

@@ -11,6 +11,7 @@ let locations = {};
 // The race is loaded in chunks ("windows") of windowSize seconds, only when needed.
 let windowSize = 120;               // seconds per chunk
 let totalTime = 120;                // length of the session in seconds
+let raceStart = 0;
 const loadedWindows = new Set();    // chunks already stored in `locations`
 const failedWindows = new Set();    // chunks the server could not provide
 const loadingWindows = new Set();   // chunks being fetched right now
@@ -56,7 +57,8 @@ function positionAt(points, t) {
 
 // 4500 -> "1:15:00", 75 -> "1:15"
 function formatTime(t) {
-  const s = Math.floor(t);
+  const sign = t < 0 ? '-' : '';
+  const s = Math.floor(Math.abs(t));
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
@@ -139,7 +141,7 @@ async function loadWindow(i) {
 async function showTime(t) {
   const i = Math.floor(t / windowSize);
   updateLeaderboard(t);
-  timeLabel.textContent = formatTime(t);
+  timeLabel.textContent = formatTime(t - raceStart);
 
   if (loadedWindows.has(i)) {
     drawDots(t);
@@ -156,7 +158,7 @@ async function showTime(t) {
 
   const now = parseFloat(slider.value);
   const j = Math.floor(now / windowSize);
-  timeLabel.textContent = formatTime(now);
+  timeLabel.textContent = formatTime(now - raceStart);
   if (loadedWindows.has(j)) {
     drawDots(now);
     statusEl.textContent = '';
@@ -178,6 +180,7 @@ async function loadSession() {
   const info = await infoRes.json();
   windowSize = info.window;
   totalTime = info.duration;
+  raceStart = info.race_start || 0;
 }
 
 slider.addEventListener('input', () => showTime(parseFloat(slider.value)));
@@ -258,6 +261,10 @@ function updateLeaderboard(t) {
   if (order === lastOrder) return;                         // nothing changed, skip redrawing
   lastOrder = order;
   renderLeaderboard(rows);
+}  
+
+function startTime() {
+    return Math.max(0, raceStart - 20);
 }
 
 // Play/Pause
@@ -288,7 +295,7 @@ function setPlaying(on) {
   playing = on;
   playBtn.textContent = on ? 'Pause' : 'Play';
   if (on) {
-    if (playTime >= totalTime) playTime = 0;              // press Play again to replay from the start
+    if (playTime >= totalTime) playTime = startTime();    // press Play again to replay from the start
     lastFrame = null;
     requestAnimationFrame(frame);
   }
@@ -312,6 +319,8 @@ async function init() {
   slider.step = 'any';
   renderDriverList();
   await loadPositions();
-  showTime(0);
+  playTime = startTime();
+  slider.value = playTime;
+  showTime(playTime);
 }
 init();

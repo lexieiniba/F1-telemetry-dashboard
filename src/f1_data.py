@@ -177,7 +177,33 @@ def get_session_positions(session_key: int):
         save_json(cache_name, changes)
     return changes
 
+def get_race_start(session_key: int, allow_api: bool = True) -> float:
+    # Seconds after the session start when the race itself begins (lap 1 starts at lights out).
+    # The session starts earlier, with the formation lap. Take the middle lap-1 start time
+    # across all drivers. Returns 0 when it is not known.
+    cache_name = f"racestart_{session_key}"
+    cached = load_json(cache_name)
+    if cached is not None:
+        return cached["offset"]
+    if not allow_api:
+        return 0.0
 
+    session = load_session(session_key=session_key)
+    if session.get('session_name') not in ('Race', 'Sprint'):
+        return 0.0
+    start = pd.Timestamp(session['date_start'])
+
+    url = f"{OPENF1_BASE}/laps?session_key={session_key}&lap_number=1"
+    req = Request(url, headers=HEADERS)
+    with urlopen(req) as response:
+        laps = json.loads(response.read().decode('utf-8'))
+
+    starts = sorted(pd.Timestamp(lap['date_start']) for lap in laps if lap.get('date_start'))
+    if not starts:
+        return 0.0
+    offset = round((starts[len(starts) // 2] - start).total_seconds(), 1)
+    save_json(cache_name, {"offset": offset})
+    return offset
                                                 
 WINDOW_SECONDS = 120
 def get_session_duration(session_key: int):
