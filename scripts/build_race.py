@@ -15,6 +15,7 @@ from urllib.error import HTTPError
 
 from src.f1_data import (
     WINDOW_SECONDS,
+    build_driver_activity,
     get_driver_locations_window,
     get_session_drivers,
     get_session_duration,
@@ -100,6 +101,13 @@ def build(session_key: int, pause: float = PAUSE):
         print(f"  window {i + 1}/{windows} {'saved' if result else 'no data'}")
         time.sleep(pause)
 
+    activity = build_driver_activity(session_key)
+    names = {str(d["driver_number"]): d["acronym"] for d in (load_json(f"driverinfo_{session_key}") or [])}
+    for number, last_move in sorted(activity.items(), key=lambda kv: kv[1]):
+        if last_move < duration - 600:
+            when = "never moved" if last_move < 0 else f"stopped moving at {int(last_move // 60)}:{int(last_move % 60):02d}"
+            print(f"  {names.get(number, number)}: {when} (the page will hide this car afterwards)")
+
     # The scheduled end time is longer than the race, so remember where the data really ends.
     with_data = [
         i for i in range(windows)
@@ -116,7 +124,7 @@ def build(session_key: int, pause: float = PAUSE):
 
 def copy_to_data(session_key: int, track_name: str):
     os.makedirs(DATA_DIR, exist_ok=True)
-    names = [f"session_{session_key}", f"driverinfo_{session_key}", f"duration_{session_key}", f"positions_{session_key}", f"racestart_{session_key}", track_name]
+    names = [f"session_{session_key}", f"driverinfo_{session_key}", f"duration_{session_key}", f"positions_{session_key}", f"racestart_{session_key}", f"activity_{session_key}", track_name]
     files = [os.path.join(CACHE_DIR, f"{n}.json") for n in names]
     files += glob.glob(os.path.join(CACHE_DIR, f"locations_{session_key}_*.json"))
     total = 0

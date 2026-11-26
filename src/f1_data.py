@@ -204,7 +204,46 @@ def get_race_start(session_key: int, allow_api: bool = True) -> float:
     offset = round((starts[len(starts) // 2] - start).total_seconds(), 1)
     save_json(cache_name, {"offset": offset})
     return offset
-                                                
+
+def _load_location_samples(session_key: int):
+    # Every saved location sample for the whole session
+    # Sort by time
+    windows = -(-get_session_duration(session_key) // WINDOW_SECONDS)
+    samples = {}
+    for i in range(windows):
+        offset = i * WINDOW_SECONDS
+        chunk = load_json(f"locations_{session_key}_{offset}_{WINDOW_SECONDS}") or {}
+        for number, points in chunk.items():
+            if points:
+                samples.setdefault(number, []).extend((p['t'] + offset, p['x'], p['y']) for p in points)
+    for points in samples.values():
+        points.sort()
+    return samples
+
+def _last_move_time(points, radius: float):
+    # The last time the car was farther than `radius` from the spot where it finally stopped.
+    # Returns -1 if it never was, which means the car never moved.
+    _, final_x, final_y = points[-1]
+    for t, x, y in reversed(points):
+        if math.hypot(x - final_x, y - final_y) > radius:
+            return round(t, 1)
+    return -1
+
+def build_driver_activity(session_key: int):
+    # For each driver, the last time (seconds after the session start) the car moved.
+    # After that moment the car is parked or retired, and the page stops drawing it.
+    samples = _load_location_samples(session_key)
+    if not samples:
+        return {}
+
+    xs = [x for points in samples.values() for _, x, _ in points]
+    ys = [y for points in samples.values() for _, _, y in points]
+    radius = 0.01 * max(max(xs) - min(xs), max(ys) - min(ys))   # 1% of the track size
+
+    activity = {number: _last_move_time(points, radius) for number, points in samples.items()}
+    save_json(f"activity_{session_key}", activity)
+    return activity
+
 WINDOW_SECONDS = 120
 def get_session_duration(session_key: int):
     saved = load_json(f"duration_{session_key}")

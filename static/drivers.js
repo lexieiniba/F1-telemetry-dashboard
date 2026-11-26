@@ -12,6 +12,7 @@ let locations = {};
 let windowSize = 120;               // seconds per chunk
 let totalTime = 120;                // length of the session in seconds
 let raceStart = 0;
+let activateUntil = {};
 const loadedWindows = new Set();    // chunks already stored in `locations`
 const failedWindows = new Set();    // chunks the server could not provide
 const loadingWindows = new Set();   // chunks being fetched right now
@@ -63,13 +64,15 @@ function formatTime(t) {
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
   const pad = (n) => String(n).padStart(2, '0');
-  return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
+  return sign + (h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`);
 }
 
 // Drawing
 function drawDots(t) {
   renderMap();   // redraw the track first
   for (const d of drivers) {
+    const until = activateUntil[String(d.driver_number)];
+    if (until !== undefined && t > until + 5) continue;  //parked, retired, or never started
     const pos = positionAt(locations[String(d.driver_number)], t);
     if (!pos) continue;
     const p = project(pos.x, pos.y);
@@ -181,6 +184,7 @@ async function loadSession() {
   windowSize = info.window;
   totalTime = info.duration;
   raceStart = info.race_start || 0;
+  activateUntil = info.active_until || {};
 }
 
 slider.addEventListener('input', () => showTime(parseFloat(slider.value)));
