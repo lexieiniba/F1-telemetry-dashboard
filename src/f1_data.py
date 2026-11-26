@@ -17,22 +17,27 @@ OPENF1_BASE = "https://api.openf1.org/v1"
 
 HEADERS = {'User-Agent': 'Mozilla/5.0'}
 
+
+FETCH_TIMEOUT = 15 # seconds to wait for OpenF1
+
+def fetch_json(url: str):
+    # Ask OpenF1 for a URL and return the parsed JSON
+    req = Request(url, headers=HEADERS)
+    with urlopen(req, timeout=FETCH_TIMEOUT) as response:
+        return json.loads(response.read().decode('utf-8'))
+
+
 CACHE_DIR = "cache"
 os.makedirs(CACHE_DIR, exist_ok=True)
-
 
 def get_available_sessions(season: int | None = None):
     if season is None:
         season = get_season()
 
     url = f"https://api.openf1.org/v1/sessions?year={season}&session_name=Race"
-    req = Request(url, headers=HEADERS)
 
     try:
-        with urlopen(req) as response:
-            if response.status == 200:
-                data = response.read().decode('utf-8')
-                return json.loads(data)
+        return fetch_json(url)
     except Exception as e:
         print(f"Error fetching sessions: {e}")
     return []
@@ -48,11 +53,9 @@ def load_session(grand_prix: str | int = None, session_type: str = None, year: i
         if year is None:
             year = int(get_season())
         url = f"{OPENF1_BASE}/sessions?year={year}&country_name={grand_prix}&session_name={session_type}"
-    req = Request(url, headers=HEADERS)
 
     try:
-        with urlopen(req) as response:
-             data = json.loads(response.read().decode())
+        data = fetch_json(url)
     except Exception as e:
         print(f"load_session error: {e}")
         data = []
@@ -71,9 +74,7 @@ def load_driver_location(session_key: int, driver_number: int, start_time: str =
     if start_time and end_time:
         loc_url += f"&date>={quote(start_time, safe='')}&date<={quote(end_time, safe='')}"
 
-    req_loc = Request(loc_url, headers=HEADERS)
-    with urlopen(req_loc) as response:
-        raw_data = json.loads(response.read().decode('utf-8'))
+    raw_data = fetch_json(loc_url)
     
     return [
         {
@@ -89,10 +90,8 @@ def load_driver_location(session_key: int, driver_number: int, start_time: str =
 
 def get_winning_driver(session_key: int):
     url = f"{OPENF1_BASE}/position?session_key={session_key}"
-    req = Request(url, headers=HEADERS)
     try:
-        with urlopen(req) as response:
-            positions = json.loads(response.read().decode('utf-8'))
+        positions = fetch_json(url)
 
         leaders = [p for p in positions if p.get('position') == 1]
         if leaders:
@@ -103,9 +102,7 @@ def get_winning_driver(session_key: int):
 
 def get_fastest_clean_lap(session_key: int, driver_number: int):
     laps_url = f"{OPENF1_BASE}/laps?session_key={session_key}&driver_number={driver_number}"
-    req = Request(laps_url, headers=HEADERS)
-    with urlopen(req) as response:
-        laps = json.loads(response.read().decode('utf-8'))
+    laps = fetch_json(laps_url)
 
     clean = [
         lap for lap in laps
@@ -131,9 +128,7 @@ def get_session_drivers(session_key: int):
         return cached
 
     url =f"{OPENF1_BASE}/drivers?session_key={session_key}"
-    req = Request(url, headers=HEADERS)
-    with urlopen(req) as response:
-        data = json.loads(response.read().decode('utf-8'))
+    data = fetch_json(url)
 
     drivers = [
         {
@@ -161,10 +156,8 @@ def get_session_positions(session_key: int):
     start = pd.Timestamp(session['date_start'])
 
     url = f"{OPENF1_BASE}/position?session_key={session_key}"
-    req = Request(url, headers=HEADERS)
-    with urlopen(req) as response:
-        raw = json.loads(response.read().decode('utf-8'))
-        
+    raw = fetch_json(url)
+
     changes = []
     for row in raw:
         if row.get('date') is None or row.get('driver_number') is None or row.get('position') is None:
@@ -194,9 +187,7 @@ def get_race_start(session_key: int, allow_api: bool = True) -> float:
     start = pd.Timestamp(session['date_start'])
 
     url = f"{OPENF1_BASE}/laps?session_key={session_key}&lap_number=1"
-    req = Request(url, headers=HEADERS)
-    with urlopen(req) as response:
-        laps = json.loads(response.read().decode('utf-8'))
+    laps = fetch_json(url)
 
     starts = sorted(pd.Timestamp(lap['date_start']) for lap in laps if lap.get('date_start'))
     if not starts:
@@ -256,7 +247,7 @@ def get_session_duration(session_key: int):
 
 def get_driver_locations_window(session_key: int, offset: int = 0, duration: int = 120, step: int = 2):
     # Positions of ALL drivers for a short time window, using a single API request
-    # (the free API only allows ~30 requests per minute, so we never loop over drivers).
+    # (the free API only allows ~30 requests per minute, so never loop over drivers).
     # offset = seconds after the session start, duration = length of the window in seconds.
     duration = min(duration, 300)  # keep the response a reasonable size
     cache_name = f"locations_{session_key}_{offset}_{duration}"
@@ -275,9 +266,7 @@ def get_driver_locations_window(session_key: int, offset: int = 0, duration: int
         f"{OPENF1_BASE}/location?session_key={session_key}"
         f"&date>={quote(start.isoformat(), safe='')}&date<={quote(end.isoformat(), safe='')}"
     )
-    req = Request(url, headers=HEADERS)
-    with urlopen(req) as response:
-        raw = json.loads(response.read().decode('utf-8'))
+    raw = fetch_json(url)
 
     by_driver = {}
     for pt in raw:
@@ -352,9 +341,7 @@ def get_session_leaderboard(session_key: int, start_time: str, end_time: str):
 
 def load_driver_telemetry(session_key: int, driver_number: int = 1) -> pd.DataFrame:
     url = f"{OPENF1_BASE}/car_data?session_key={session_key}&driver_number={driver_number}"
-    req = Request(url, headers=HEADERS)
-    with urlopen(req) as response:
-        raw_data = json.loads(response.read().decode())
+    raw_data = fetch_json(url)
         
     df = pd.DataFrame(raw_data)
     
