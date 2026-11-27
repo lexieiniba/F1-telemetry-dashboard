@@ -53,7 +53,8 @@ def get_dashboard_html(session_key: int, track_data: dict) -> str:
                 <aside class="border border-slate-900 rounded bg-slate-900/20 p-4 flex flex-col justify-between font-mono">
                     <div class="mb-4">
                         <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 border-b border-slate-900 pb-2">Drivers</h2>
-                        <ul id="driverList" class="space y-1 test-xs"></ul?>
+                        <ul id="driverList" class="space-y-1 text-xs"></ul>
+                    </div>
                     <div>
                         <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-900 pb-2">Session Telemetry</h2>
                         <div id="telemetryStats" class="space-y-3 text-xs text-slate-300">
