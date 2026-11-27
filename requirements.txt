@@ -1,5 +1,4 @@
 pandas
-opencv-python
 numpy
 uvicorn
 fastapi

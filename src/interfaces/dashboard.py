@@ -11,6 +11,10 @@ def get_dashboard_html(session_key: int, track_data: dict) -> str:
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>F1 Telemetry Dashboard — Session {session_key}</title>
         <script src="https://cdn.tailwindcss.com"></script>
+        <link 
+            rel="stylesheet"
+            href="/static/css/dashboard.css"
+        >
     </head>
     <body class= "bg-[#0C0C0A] text-slate-100 font-sans min-h-screen p-6">
         <div class="max-w-6xl mx-auto">

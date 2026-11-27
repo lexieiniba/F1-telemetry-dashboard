@@ -1,4 +1,3 @@
-import os
 import math
 from urllib.request import Request, urlopen
 from urllib.parse import quote
@@ -10,8 +9,6 @@ from src.lib.cache import load_json, save_json
 
 setup_cache()
 
-FPS = 25
-DT = 1 / FPS
 
 OPENF1_BASE = "https://api.openf1.org/v1"
 
@@ -27,8 +24,6 @@ def fetch_json(url: str):
         return json.loads(response.read().decode('utf-8'))
 
 
-CACHE_DIR = "cache"
-os.makedirs(CACHE_DIR, exist_ok=True)
 
 def get_available_sessions(season: int | None = None):
     if season is None:
@@ -235,6 +230,10 @@ def build_driver_activity(session_key: int):
     save_json(f"activity_{session_key}", activity)
     return activity
 
+def get_driver_activity(session_key: int):
+    # The saved result of build_driver_activity, or an empty dict if there is none
+    return load_json(f"activity_{session_key}") or {}
+
 WINDOW_SECONDS = 120
 def get_session_duration(session_key: int):
     saved = load_json(f"duration_{session_key}")
@@ -287,58 +286,6 @@ def get_driver_locations_window(session_key: int, offset: int = 0, duration: int
         save_json(cache_name, result)
     return result
 
-def get_session_leaderboard(session_key: int, start_time: str, end_time: str):
-    from src.insights.track_position_window import TrackGeometryProcessor
-    drivers_url = f"{OPENF1_BASE}/drivers?session_key={session_key}"
-    req = Request(drivers_url, headers=HEADERS)
-    with urlopen(req) as response:
-        drivers = json.loads(response.read().decode('utf-8'))
-
-        track_proc = TrackGeometryProcessor(session_key)
-
-    # Sort and map drivers 
-    leaderboard = []
-    for d in drivers:
-        num = d.get("driver_number")
-        if not num:
-            continue
-
-        loc_data = load_driver_location(session_key, driver_number=num, start_time=start_time, end_time=end_time)
-        track_fraction = 0.0 
-        lap_number = 1
-        
-        if loc_data and track_proc.has_real_track:
-            # Grab the latest coordinate sample in time window
-            latest_pt = loc_data[-1]
-            x, y = latest_pt.get('x'), latest_pt.get('y')
-
-            if x is not None and y is not None:
-                # Find closest index along the reference track
-                closest_idx = min(
-                    range(len(track_proc.center_xs)),
-                    key=lambda i: math.hypot(track_proc.center_xs[i] - x, track_proc.center_ys[i] - y)
-                )
-
-                track_fraction = track_proc.cum_fracs[closest_idx]
-
-        # Lap number takes precedence, track fraction as decimal offset
-        total_progress = lap_number + track_fraction
-
-        leaderboard.append({
-            "driver_number": num, 
-            "acronym": d.get("name_acronym", "---"),
-            "team": d.get("team_name", ""),
-            "color": f"#{d.get('team_colour', '64748b')}",
-            "lap": lap_number, 
-            "progress": total_progress
-        })
-
-    # Sort descending
-    leaderboard.sort(key=lambda item: item["progress"], reverse = True)
-    for pos, driver in enumerate(leaderboard, start=1):
-        driver["position"] = pos 
-    return leaderboard
-
 def load_driver_telemetry(session_key: int, driver_number: int = 1) -> pd.DataFrame:
     url = f"{OPENF1_BASE}/car_data?session_key={session_key}&driver_number={driver_number}"
     raw_data = fetch_json(url)
@@ -356,7 +303,3 @@ def load_driver_telemetry(session_key: int, driver_number: int = 1) -> pd.DataFr
         })
         
     return df
-
-if __name__ == '__main__':
-    session_key = 11245
-    print(get_session_leaderboard(session_key))
