@@ -69,40 +69,61 @@ function formatTime(t) {
 }
 
 // Drawing
+
 function drawDots(t) {
   renderMap();   // redraw the track first
-  for (const d of drivers) {
+
+  // Draw unselected drivers first, selected driver last
+  const orderedDrivers = [
+    ...drivers.filter(
+      d => String(d.driver_number) !== String(selectedDriverNumber)
+    ),
+    ...drivers.filter(
+      d => String(d.driver_number) === String(selectedDriverNumber)
+    )
+  ];
+
+  for (const d of orderedDrivers) {
     const until = activateUntil[String(d.driver_number)];
-    if (until !== undefined && t > until + 5) continue;  //parked, retired, or never started
+
+    if (until !== undefined && t > until + 5) continue;
+
     const pos = positionAt(locations[String(d.driver_number)], t);
     if (!pos) continue;
+
     const p = project(pos.x, pos.y);
 
-    const isSelected = 
-    String(d.driver_number) === String(selectedDriverNumber);
+    const isSelected =
+      String(d.driver_number) === String(selectedDriverNumber);
 
+    // Selected driver's glow and outer ring
+    if (isSelected) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+      ctx.shadowColor = '#FFFFFF';
+      ctx.shadowBlur = 12;
+      ctx.fillStyle = '#' + d.team_colour;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 11, 0, Math.PI * 2);
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    // Draw the actual driver dot
     ctx.beginPath();
     ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
     ctx.fillStyle = '#' + d.team_colour;
-
-    ctx.strokeStyle = '#' + d.team_colour;
-    ctx.lineWidth = 1.5;
-    
-    
-    if (isSelected) {
-        ctx.shadowColor = '#FFFFFF';
-        ctx.shadowBlur = 10;
-    } else {
-        ctx.shadowBlur = 0;
-    }
-
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 1;
     ctx.fill();
     ctx.stroke();
-
-    // Reset shadow so it doesn't affect other drawing
-    ctx.shadowBlur = 0;
-    }
+  }
 }
+
 
   
 
@@ -242,28 +263,34 @@ function positionOf(list, t) {
   return list[lo].p;
 }
 
+
 function renderLeaderboard(rows) {
   driverListEl.textContent = '';
+
   for (const row of rows) {
     const d = row.driver;
+
+    const isSelected =
+      String(d.driver_number) === String(selectedDriverNumber);
+
     const li = document.createElement('li');
-    li.className = 'flex items-center gap-2 px-2 py-2 rounded cursor-pointer transition-colors';
+    li.className =
+      'rounded-lg overflow-hidden cursor-pointer transition-all duration-300';
     li.dataset.driver = d.driver_number;
-    if (String(d.driver_number) === String(selectedDriverNumber)) {
-        li.classList.add(
-            'bg-slate-700/70',
-            'border-1-2',
-            'border-white'
-        );
-    } else{
-        li.classList.add('hover:bg-slate-800/70');
+
+    if (isSelected) {
+      li.classList.add('bg-slate-800', 'border', 'border-slate-500');
+    } else {
+      li.classList.add('hover:bg-slate-800/70');
     }
+
     li.addEventListener('click', () => {
-        selectedDriverNumber = d.driver_number;
-        renderLeaderboard(rows);
-        drawDots(playTime);
+      selectedDriverNumber = d.driver_number;
+      renderLeaderboard(rows);
+      drawDots(playTime);
     });
 
+    // Leaderboard row
     const pos = document.createElement('span');
     pos.className = 'w-5 text-right text-slate-500';
     pos.textContent = row.position === 99 ? '-' : row.position;
@@ -277,13 +304,101 @@ function renderLeaderboard(rows) {
     code.textContent = d.acronym;
 
     const team = document.createElement('span');
-    team.className = 'text-slate-500';
+    team.className = 'text-slate-500 text-xs truncate flex-1';
     team.textContent = d.team;
 
-    li.append(pos, swatch, code, team);
+    const header = document.createElement('div');
+    header.className = 'flex items-center gap-2 px-2 py-3';
+
+    header.append(pos, swatch, code, team);
+    li.appendChild(header);
+
+    // Expanded driver profile
+    if (isSelected) {
+      const profile = document.createElement('div');
+      profile.className = 'relative overflow-hidden';
+
+      // Full team-colored gradient
+      profile.style.background =
+        `linear-gradient(120deg, #${d.team_colour} 0%, #0f172a 100%)`;
+
+      const content = document.createElement('div');
+      content.className = 'flex items-center gap-3 px-3 py-2';
+
+      // Driver information
+      const info = document.createElement('div');
+      info.className = 'min-w-0 flex-1';
+
+      const number = document.createElement('div');
+      number.className = 'text-xs text-slate-300 font-semibold';
+      number.textContent = `CAR ${d.driver_number}`;
+
+      const name = document.createElement('div');
+      name.className = 'text-sm font-extrabold text-white leading-tight mt-1 break-words';
+      name.textContent = d.full_name || d.acronym;
+
+      const teamName = document.createElement('div');
+      teamName.className = 'text-xs text-slate-300 mt-1';
+      teamName.textContent = d.team;
+
+      info.append(number, name, teamName);
+      content.appendChild(info);
+
+      // Actual driver photo — no box or container
+      if (d.headshot_url) {
+        const img = document.createElement('img');
+        img.src = d.headshot_url;
+        img.alt = d.full_name || d.acronym;
+        img.className =
+          'w-[72px] h-[72px] object-contain flex-shrink-0';
+        img.loading = 'lazy';
+
+        content.appendChild(img);
+      profile.appendChild(content);
+      li.appendChild(profile);
+      }
+
+      // Driver statistics
+      const stats = document.createElement('div');
+      stats.className = 'grid grid-cols-2 gap-2 px-2 pb-2';
+
+      const positionStat = document.createElement('div');
+      positionStat.className = 'bg-black/20 rounded-lg p-2';
+
+      const positionLabel = document.createElement('div');
+      positionLabel.className =
+        'text-[9px] text-slate-400 uppercase tracking-wider';
+      positionLabel.textContent = 'Position';
+
+      const positionValue = document.createElement('div');
+      positionValue.className = 'text-sm font-bold text-white';
+      positionValue.textContent =
+        row.position === 99 ? '-' : `P${row.position}`;
+
+      const numberStat = document.createElement('div');
+      numberStat.className = 'bg-black/20 rounded-lg p-2';
+
+      const numberLabel = document.createElement('div');
+      numberLabel.className =
+        'text-[9px] text-slate-400 uppercase tracking-wider';
+      numberLabel.textContent = 'Driver Number';
+
+      const numberValue = document.createElement('div');
+      numberValue.className = 'text-sm font-bold text-white';
+      numberValue.textContent = `#${d.driver_number}`;
+
+      positionStat.append(positionLabel, positionValue);
+      numberStat.append(numberLabel, numberValue);
+      stats.append(positionStat, numberStat);
+
+      profile.append(content, stats);
+      li.appendChild(profile);
+    }
+
     driverListEl.appendChild(li);
   }
 }
+
 
 function updateLeaderboard(t) {
   if (Object.keys(positionsByDriver).length === 0) return;

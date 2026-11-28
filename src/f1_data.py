@@ -77,6 +77,8 @@ def load_session(grand_prix: str | int = None, session_type: str = None, year: i
 
     try:
         data = fetch_json(url)
+        print("OPENF1 DRIVER SAMPLE:", data[0])
+        print("DRIVER CACHE:", cached)
     except OpenF1Unavailable:
         raise
     except Exception as e:
@@ -153,8 +155,10 @@ def get_session_drivers(session_key: int):
         {
             "driver_number": d.get("driver_number"),
             "acronym": d.get("name_acronym", "---"),
+            "full_name": d.get("full_name", ""),
             "team": d.get("team_name", ""),
             "team_colour": d.get("team_colour") or "64748b",
+            "headshot_url": d.get("headshot_url") or "",
         }
         for d in data if d.get("driver_number")
     ]
