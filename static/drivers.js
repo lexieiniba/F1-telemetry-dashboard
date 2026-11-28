@@ -3,6 +3,13 @@ const slider = document.getElementById('timeSlider');
 const timeLabel = document.getElementById('timeLabel');
 const statusEl = document.getElementById('statusMsg');
 const driverListEl = document.getElementById('driverList');
+const telemetryStatsEl = document.getElementById('telemetryStats');
+
+let sessionStartMs = null;
+let telemetryByDriver = {};
+let telemetryLoading = new Set();
+let telemetryErrors = {};
+let lastTelemetryRenderKey = null;
 
 
 let drivers = [];
@@ -181,6 +188,8 @@ async function loadWindow(i) {
 
 // Show the race at time t: load the chunk (and the next one), then draw.
 async function showTime(t) {
+    renderTelemetry(t);
+    
   const i = Math.floor(t / windowSize);
   updateLeaderboard(t);
   timeLabel.textContent = formatTime(t - raceStart);
@@ -224,6 +233,199 @@ async function loadSession() {
   totalTime = info.duration;
   raceStart = info.race_start || 0;
   activateUntil = info.active_until || {};
+  sessionStartMs = Date.parse(info.session_start);
+}
+
+// Fetch and prepare telemetry for one driver.
+async function loadDriverTelemetry(driverNumber) {
+  const key = String(driverNumber);
+
+  // Already loaded: reuse the cached data.
+  if (Object.hasOwn(telemetryByDriver, key)) {
+    renderTelemetry(playTime);
+    return;
+  }
+
+  // Avoid duplicate requests.
+  if (telemetryLoading.has(key)) return;
+
+  telemetryLoading.add(key);
+  renderTelemetry(playTime);
+
+  try {
+    const res = await fetch(
+      `/api/telemetry/${sessionKey}/${driverNumber}`
+    );
+
+    if (!res.ok) {
+      throw new Error('Could not load driver telemetry.');
+    }
+
+    const records = await res.json();
+
+    const samples = records
+      .map(record => {
+        const timestamp = Date.parse(record.Time);
+
+        return {
+          ...record,
+          t: (timestamp - sessionStartMs) / 1000
+        };
+      })
+      .filter(sample =>
+        Number.isFinite(sample.t) &&
+        sample.t >= 0 &&
+        sample.t <= totalTime
+      )
+      .sort((a, b) => a.t - b.t);
+
+    telemetryByDriver[key] = samples;
+
+  } catch (err) {
+    console.error('Telemetry loading failed:', err);
+    telemetryErrors[key] = 'Could not load telemetry.';
+  } finally {
+    telemetryLoading.delete(key);
+    renderTelemetry(playTime);
+  }
+}
+
+
+// Find the latest telemetry sample at or before playback time.
+function telemetryAt(samples, t) {
+  if (!samples || samples.length === 0) return null;
+
+  let lo = 0;
+  let hi = samples.length;
+
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+
+    if (samples[mid].t <= t) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
+    }
+  }
+
+  const sample = samples[lo - 1];
+
+  if (!sample || t - sample.t > 2) {
+    return null;
+  }
+
+  return sample;
+}
+
+
+// Render the selected driver's telemetry.
+function renderTelemetry(t) {
+  if (!telemetryStatsEl) return;
+
+  if (selectedDriverNumber === null) {
+    telemetryStatsEl.textContent = 'Select a driver to view their telemetry.';
+    lastTelemetryRenderKey = null;
+    return;
+  }
+
+  const key = String(selectedDriverNumber);
+  const driver = drivers.find(
+    d => String(d.driver_number) === key
+  );
+
+  if (telemetryLoading.has(key)) {
+    telemetryStatsEl.textContent = 'Loading telemetry...';
+    lastTelemetryRenderKey = null;
+    return;
+  }
+
+  if (telemetryErrors[key]) {
+    telemetryStatsEl.textContent = telemetryErrors[key];
+    lastTelemetryRenderKey = null;
+    return;
+  }
+
+  if (!Object.hasOwn(telemetryByDriver, key)) {
+    telemetryStatsEl.textContent = 'Loading telemetry...';
+    lastTelemetryRenderKey = null;
+    return;
+  }
+
+  const samples = telemetryByDriver[key];
+  const sample = telemetryAt(samples, t);
+
+  if (!sample) {
+    telemetryStatsEl.textContent =
+      'No telemetry available at this playback time.';
+    lastTelemetryRenderKey = null;
+    return;
+  }
+
+  // Avoid rebuilding the panel every animation frame
+  // when the telemetry sample hasn't changed.
+  const renderKey = `${key}:${sample.t}`;
+
+  if (renderKey === lastTelemetryRenderKey) return;
+
+  lastTelemetryRenderKey = renderKey;
+
+  telemetryStatsEl.replaceChildren();
+
+  const heading = document.createElement('div');
+  heading.className = 'text-sm font-bold text-white mb-3';
+  heading.textContent =
+    `${driver.full_name || driver.acronym} · ${driver.team}`;
+
+  const grid = document.createElement('div');
+  grid.className = 'grid grid-cols-2 sm:grid-cols-3 gap-3';
+
+  const metrics = [
+    {
+      label: 'Speed',
+      value: `${Math.round(Number(sample.Speed))} km/h`
+    },
+    {
+      label: 'Throttle',
+      value: `${Math.round(Number(sample.Throttle))}%`
+    },
+    {
+      label: 'Brake',
+      value: Number(sample.Brake) > 0 ? 'ON' : 'OFF'
+    },
+    {
+      label: 'Gear',
+      value: sample.Gear ?? '—'
+    },
+    {
+      label: 'RPM',
+      value: sample.RPM == null
+        ? '—'
+        : Math.round(Number(sample.RPM)).toLocaleString()
+    },
+    {
+      label: 'DRS',
+      value: sample.drs ?? '—'
+    }
+  ];
+
+  for (const metric of metrics) {
+    const card = document.createElement('div');
+    card.className = 'bg-slate-800 rounded-lg p-3';
+
+    const label = document.createElement('div');
+    label.className =
+      'text-xs text-slate-400 uppercase tracking-wider';
+    label.textContent = metric.label;
+
+    const value = document.createElement('div');
+    value.className = 'text-xl font-bold text-white mt-1';
+    value.textContent = metric.value;
+
+    card.append(label, value);
+    grid.appendChild(card);
+  }
+
+  telemetryStatsEl.append(heading, grid);
 }
 
 slider.addEventListener('input', () => showTime(parseFloat(slider.value)));
@@ -288,6 +490,9 @@ function renderLeaderboard(rows) {
       selectedDriverNumber = d.driver_number;
       renderLeaderboard(rows);
       drawDots(playTime);
+
+      loadDriverTelemetry(selectedDriverNumber);
+      renderTelemetry(playTime);
     });
 
     // Leaderboard row
