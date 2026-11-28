@@ -27,6 +27,8 @@ class OpenF1Unavailable(Exception):
         self.status = status
 
 class DataNotFound(ValueError):
+    # OpenF1 is working, but has no data (unknown session, or a race
+    # that has not happened yet)
     pass
 
 
@@ -50,6 +52,19 @@ def fetch_json(url: str):
         raise OpenF1Unavailable(f"Could not reach OpenF1: {e}") from e
 
 
+
+def get_available_sessions(season: int):
+    # Save the list of season's races
+    # Raises OpenF1Unavailable if OpenF1 is locked or down.
+
+    url = f"https://api.openf1.org/v1/sessions?year={season}&session_name=Race"
+    sessions = fetch_json(url)
+    if sessions:
+        save_json(f"sessions_{season}", sessions)
+    return sessions
+
+def load_season_sessions(season: int):
+    return load_json(f"sessions_{season}") or []
 
 def get_available_sessions(season: int | None = None):
     if season is None:
@@ -77,8 +92,6 @@ def load_session(grand_prix: str | int = None, session_type: str = None, year: i
 
     try:
         data = fetch_json(url)
-        print("OPENF1 DRIVER SAMPLE:", data[0])
-        print("DRIVER CACHE:", cached)
     except OpenF1Unavailable:
         raise
     except Exception as e:
@@ -331,3 +344,32 @@ def load_driver_telemetry(session_key: int, driver_number: int = 1) -> pd.DataFr
         })
         
     return df
+
+def get_circuit_geometry(session_key: int):
+    session = load_session(session_key=session_key)
+
+    circuit_key = session.get("circuit_key")
+    year = session.get("year")
+
+    if not circuit_key or not year:
+        raise DataNotFound("Circuit information is unavailable")
+
+    cache_name = f"circuit_geometry_{circuit_key}_{year}"
+
+    cached = load_json(cache_name)
+    if cached:
+        return cached
+
+    url = (
+        f"https://api.multiviewer.app/api/v1/circuits/"
+        f"{circuit_key}/{year}"
+    )
+
+    geometry = fetch_json(url)
+
+    if not isinstance(geometry, dict) or not geometry.get("x") or not geometry.get("y"):
+        raise DataNotFound("Circuit geometry is unavailable")
+
+    save_json(cache_name, geometry)
+
+    return geometry

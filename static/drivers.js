@@ -25,21 +25,67 @@ const loadedWindows = new Set();    // chunks already stored in `locations`
 const failedWindows = new Set();    // chunks the server could not provide
 const loadingWindows = new Set();   // chunks being fetched right now
 
-// turn track coordinates into canvas pixels
-function makeProjector(canvasEl) {
-  const b = trackData.bounds;
-  const padding = 50;
-  const scaleX = (canvasEl.width - padding * 2) / ((b.max_x - b.min_x) || 1);
-  const scaleY = (canvasEl.height - padding * 2) / ((b.max_y - b.min_y) || 1);
-  const scale = Math.min(scaleX, scaleY);
-  return function (x, y) {
-    return {
-      x: padding + (x - b.min_x) * scale,
-      y: canvasEl.height - (padding + (y - b.min_y) * scale),
-    };
+
+// Official circuit geometry
+let circuitGeometry = null;
+let circuitProject = null;
+
+function getBounds(xs, ys) {
+  return {
+    minX: Math.min(...xs),
+    maxX: Math.max(...xs),
+    minY: Math.min(...ys),
+    maxY: Math.max(...ys),
   };
 }
-const project = makeProjector(canvas);
+
+function makeGeometryProjector(bounds) {
+  const padding = 50;
+
+  const width = bounds.maxX - bounds.minX || 1;
+  const height = bounds.maxY - bounds.minY || 1;
+
+  const scale = Math.min(
+    (canvas.width - padding * 2) / width,
+    (canvas.height - padding * 2) / height
+  );
+
+  const drawnWidth = width * scale;
+  const drawnHeight = height * scale;
+
+  const left = (canvas.width - drawnWidth) / 2;
+  const top = (canvas.height - drawnHeight) / 2;
+
+  return (x, y) => ({
+    x: left + (x - bounds.minX) * scale,
+    y: canvas.height - (top + (y - bounds.minY) * scale),
+  });
+}
+
+async function loadCircuitGeometry() {
+  const response = await fetch(
+    `/api/circuit-geometry/${sessionKey}`
+  );
+
+  if (!response.ok) {
+    throw new Error('Could not load circuit geometry');
+  }
+
+  const geometry = await response.json();
+
+  if (
+    !Array.isArray(geometry.x) ||
+    !Array.isArray(geometry.y) ||
+    geometry.x.length !== geometry.y.length
+  ) {
+    throw new Error('Invalid circuit geometry');
+  }
+
+  circuitGeometry = geometry;
+  const bounds = getBounds(geometry.x, geometry.y);
+  circuitProject = makeGeometryProjector(bounds);
+
+}
 
 // Find where a driver is at time t.
 // `points` is a list of {t, x, y} sorted by time. If t falls between two samples,
@@ -77,8 +123,35 @@ function formatTime(t) {
 
 // Drawing
 
+function renderCircuitGeometry() {
+  if (!circuitGeometry || !circuitProject) return;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const xs = circuitGeometry.x;
+  const ys = circuitGeometry.y;
+
+  ctx.beginPath();
+
+  const first = circuitProject(xs[0], ys[0]);
+  ctx.moveTo(first.x, first.y);
+
+  for (let i = 1; i < xs.length; i++) {
+    const p = circuitProject(xs[i], ys[i]);
+    ctx.lineTo(p.x, p.y);
+  }
+
+  ctx.closePath();
+
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 4;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.stroke();
+}
+
 function drawDots(t) {
-  renderMap();   // redraw the track first
+  renderCircuitGeometry();
 
   // Draw unselected drivers first, selected driver last
   const orderedDrivers = [
@@ -98,7 +171,7 @@ function drawDots(t) {
     const pos = positionAt(locations[String(d.driver_number)], t);
     if (!pos) continue;
 
-    const p = project(pos.x, pos.y);
+    const p = circuitProject(pos.x, pos.y);
 
     const isSelected =
       String(d.driver_number) === String(selectedDriverNumber);
@@ -189,7 +262,7 @@ async function loadWindow(i) {
 // Show the race at time t: load the chunk (and the next one), then draw.
 async function showTime(t) {
     renderTelemetry(t);
-    
+
   const i = Math.floor(t / windowSize);
   updateLeaderboard(t);
   timeLabel.textContent = formatTime(t - raceStart);
@@ -198,7 +271,7 @@ async function showTime(t) {
     drawDots(t);
     statusEl.textContent = '';
   } else {
-    renderMap();    // no data for this part yet, so show just the track
+    renderCircuitGeometry();
     statusEl.textContent = failedWindows.has(i)
       ? 'This part of the race is not available.'
       : 'Loading...';
@@ -214,7 +287,7 @@ async function showTime(t) {
     drawDots(now);
     statusEl.textContent = '';
   } else if (failedWindows.has(j)) {
-    renderMap();
+    renderCircuitGeometry();
     statusEl.textContent = 'This part of the race is not available.';
   }
 }
@@ -662,9 +735,9 @@ playBtn.addEventListener('click', () => setPlaying(!playing));
 slider.addEventListener('input', () => { playTime = parseFloat(slider.value); });
 
 async function init() {
-  if (!trackData.has_real_track) return;
   try {
     await loadSession();
+    await loadCircuitGeometry();
   } catch (err) {
     console.error(err);
     driverListEl.textContent =

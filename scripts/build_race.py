@@ -1,10 +1,6 @@
 """Download a whole race once and save it in data/, so the app never needs OpenF1 at runtime.
-
-Run from the project root with the venv active, while OpenF1 is open (not during a live session):
-
-    python -m scripts.build_race 11234
-
-It is safe to stop and run again: windows that are already saved are skipped.
+Run from the project root with the venv active, while OpenF1 is open (not during a live session)
+Windows that are already saved are skipped.
 """
 import glob
 import os

@@ -1,10 +1,4 @@
-
-import json
-
-
-def get_dashboard_html(session_key: int, track_data: dict) -> str:
-    track_json = json.dumps(track_data)
-
+def get_dashboard_html(session_key: int) -> str:
     return f"""
     <!DOCTYPE html>
     <html lang="en">
@@ -194,144 +188,11 @@ def get_dashboard_html(session_key: int, track_data: dict) -> str:
 
         </div>
 
-
-        <!-- Track Rendering -->
+        <!-- Canvas initialization -->
         <script>
-
-            // Injected track geometry payload from Python backend
-            const trackData = {track_json};
-
             const canvas = document.getElementById('trackCanvas');
             const ctx = canvas.getContext('2d');
-
-
-            function renderMap() {{
-
-                if (!trackData.has_real_track) {{
-
-                    ctx.fillStyle = '#FFFFFF';
-                    ctx.font = '14px monospace';
-
-                    ctx.fillText(
-                        'No track geometry available for this session.',
-                        40,
-                        50
-                    );
-
-                    return;
-                }}
-
-
-                const bounds = trackData.bounds;
-
-                const minX = bounds.min_x;
-                const maxX = bounds.max_x;
-
-                const minY = bounds.min_y;
-                const maxY = bounds.max_y;
-
-
-                const trackWidth = maxX - minX;
-                const trackHeight = maxY - minY;
-
-
-                const padding = 50;
-
-                const scaleX =
-                    (canvas.width - padding * 2) / (trackWidth || 1);
-
-                const scaleY =
-                    (canvas.height - padding * 2) / (trackHeight || 1);
-
-                const scale = Math.min(scaleX, scaleY);
-
-
-                function toScreen(x, y) {{
-
-                    return {{
-
-                        x: padding + (x - minX) * scale,
-
-                        y: canvas.height - (
-                            padding + (y - minY) * scale
-                        )
-
-                    }};
-
-                }}
-
-
-                ctx.clearRect(
-                    0,
-                    0,
-                    canvas.width,
-                    canvas.height
-                );
-
-
-                // Helper to draw polylines
-                function drawPolyline(xs, ys, color, lineWidth) {{
-
-                    if (!xs || xs.length === 0) return;
-
-                    ctx.beginPath();
-
-                    for (let i = 0; i < xs.length; i++) {{
-
-                        const pt = toScreen(xs[i], ys[i]);
-
-                        if (i === 0) {{
-                            ctx.moveTo(pt.x, pt.y);
-                        }} else {{
-                            ctx.lineTo(pt.x, pt.y);
-                        }}
-
-                    }}
-
-                    ctx.closePath();
-
-                    ctx.strokeStyle = color;
-                    ctx.lineWidth = lineWidth;
-
-                    ctx.stroke();
-
-                }}
-
-
-                // Draw outer boundary wall
-                drawPolyline(
-                    trackData.outer_xs,
-                    trackData.outer_ys,
-                    '#FFFFFF',
-                    2
-                );
-
-
-                // Draw inner boundary wall
-                drawPolyline(
-                    trackData.inner_xs,
-                    trackData.inner_ys,
-                    '#FFFFFF',
-                    2
-                );
-
-
-                // Draw center line
-                drawPolyline(
-                    trackData.center_xs,
-                    trackData.center_ys,
-                    '#FFFFFF',
-                    1
-                );
-
-            }}
-
-
-            // Initial render call
-            renderMap();
-
         </script>
-
 
         <!-- Driver and Telemetry Logic -->
         <script src="/static/drivers.js"></script>

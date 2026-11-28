@@ -6,7 +6,6 @@ import sys
 import time
 
 from src import f1_data
-from src.insights.track_position_window import get_track_visualization_payload
 
 api_calls = 0
 _original_urlopen = f1_data.urlopen
@@ -23,7 +22,7 @@ f1_data.urlopen = _counting_urlopen   # count every request that goes out to Ope
 
 def dashboard_load(session_key: int):
     f1_data.load_session(session_key=session_key)
-    get_track_visualization_payload(session_key)
+    
     f1_data.get_session_drivers(session_key)
     f1_data.get_driver_locations_window(session_key, 0, f1_data.WINDOW_SECONDS)
 
