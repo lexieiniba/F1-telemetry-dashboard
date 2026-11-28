@@ -1,5 +1,6 @@
 import math
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError
 from urllib.parse import quote
 import json
 import pandas as pd
@@ -17,11 +18,36 @@ HEADERS = {'User-Agent': 'Mozilla/5.0'}
 
 FETCH_TIMEOUT = 15 # seconds to wait for OpenF1
 
+class OpenF1Unavailable(Exception):
+    # OpenF1 cannot be used right now: locked during a live session (401), rate limited (429),
+    # having a server problem (5xx), too slow, or unreachable. `status` holds the HTTP code
+    # when there is one. A 404 is not in this group: it means "no data for this request"
+    def __init__(self, message: str, status: int | None = None):
+        super().__init__(message)
+        self.status = status
+
+class DataNotFound(ValueError):
+    pass
+
+
 def fetch_json(url: str):
     # Ask OpenF1 for a URL and return the parsed JSON
     req = Request(url, headers=HEADERS)
-    with urlopen(req, timeout=FETCH_TIMEOUT) as response:
-        return json.loads(response.read().decode('utf-8'))
+    try:
+        with urlopen(req, timeout=FETCH_TIMEOUT) as response:
+            return json.loads(response.read().decode('utf-8'))
+    except HTTPError as e:
+        if e.code == 401:
+            raise OpenF1Unavailable("OpenF1 is locked during a live session", status=401) from e
+        if e.code == 429:
+            raise OpenF1Unavailable("OpenF1 rate limit reached", status=429) from e
+        if e.code >= 500:
+            raise OpenF1Unavailable(f"OpenF1 server error ({e.code})", status=e.code) from e
+        if e.code == 404:
+            return []
+        raise    
+    except OSError as e:    # timeouts, connection problems, no internet
+        raise OpenF1Unavailable(f"Could not reach OpenF1: {e}") from e
 
 
 
@@ -51,6 +77,8 @@ def load_session(grand_prix: str | int = None, session_type: str = None, year: i
 
     try:
         data = fetch_json(url)
+    except OpenF1Unavailable:
+        raise
     except Exception as e:
         print(f"load_session error: {e}")
         data = []
@@ -85,15 +113,11 @@ def load_driver_location(session_key: int, driver_number: int, start_time: str =
 
 def get_winning_driver(session_key: int):
     url = f"{OPENF1_BASE}/position?session_key={session_key}"
-    try:
-        positions = fetch_json(url)
-
-        leaders = [p for p in positions if p.get('position') == 1]
-        if leaders:
-            return leaders[-1]['driver_number']
-    except Exception:
-        pass
-    return 1
+    positions = fetch_json(url)
+    leaders = [p for p in positions if p.get('position') == 1]
+    if not leaders:
+        raise ValueError(f"No position data for session {session_key}, so the winner is unknown")
+    return leaders[-1]['driver_number']
 
 def get_fastest_clean_lap(session_key: int, driver_number: int):
     laps_url = f"{OPENF1_BASE}/laps?session_key={session_key}&driver_number={driver_number}"

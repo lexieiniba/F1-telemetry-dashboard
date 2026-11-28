@@ -77,7 +77,7 @@ def get_dashboard_html(session_key: int, track_data: dict) -> str:
 
             function renderMap() {{
                 if (!trackData.has_real_track) {{
-                    ctx.fillStyle = '#64748b';
+                    ctx.fillStyle = '#FFFFFF';
                     ctx.font = '14px monospace';
                     ctx.fillText('No track geometry available for this session.', 40, 50);
                     return;
@@ -120,13 +120,13 @@ def get_dashboard_html(session_key: int, track_data: dict) -> str:
                 }}
 
                 // Draw outer boundary wall
-                drawPolyline(trackData.outer_xs, trackData.outer_ys, '#334155', 2);
+                drawPolyline(trackData.outer_xs, trackData.outer_ys, '#FFFFFF', 2);
 
                 // Draw inner boundary wall
-                drawPolyline(trackData.inner_xs, trackData.inner_ys, '#334155', 2);
+                drawPolyline(trackData.inner_xs, trackData.inner_ys, '#FFFFFF', 2);
 
                 // Draw center line
-                drawPolyline(trackData.center_xs, trackData.center_ys, '#0891b2', 1);
+                drawPolyline(trackData.center_xs, trackData.center_ys, '#FFFFFF', 1);
             }}
 
             // Initial render call

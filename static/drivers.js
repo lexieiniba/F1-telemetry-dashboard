@@ -13,6 +13,7 @@ let windowSize = 120;               // seconds per chunk
 let totalTime = 120;                // length of the session in seconds
 let raceStart = 0;
 let activateUntil = {};
+let selectedDriverNumber = null;
 const loadedWindows = new Set();    // chunks already stored in `locations`
 const failedWindows = new Set();    // chunks the server could not provide
 const loadingWindows = new Set();   // chunks being fetched right now
@@ -77,16 +78,33 @@ function drawDots(t) {
     if (!pos) continue;
     const p = project(pos.x, pos.y);
 
+    const isSelected = 
+    String(d.driver_number) === String(selectedDriverNumber);
+
     ctx.beginPath();
     ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
     ctx.fillStyle = '#' + d.team_colour;
-    ctx.fill();
 
-    ctx.fillStyle = '#e2e8f0';
-    ctx.font = '10px monospace';
-    ctx.fillText(d.acronym, p.x + 9, p.y + 3);
-  }
+    ctx.strokeStyle = '#' + d.team_colour;
+    ctx.lineWidth = 1.5;
+    
+    
+    if (isSelected) {
+        ctx.shadowColor = '#FFFFFF';
+        ctx.shadowBlur = 10;
+    } else {
+        ctx.shadowBlur = 0;
+    }
+
+    ctx.fill();
+    ctx.stroke();
+
+    // Reset shadow so it doesn't affect other drawing
+    ctx.shadowBlur = 0;
+    }
 }
+
+  
 
 function renderDriverList() {
   driverListEl.textContent = '';
@@ -229,8 +247,22 @@ function renderLeaderboard(rows) {
   for (const row of rows) {
     const d = row.driver;
     const li = document.createElement('li');
-    li.className = 'flex items-center gap-2';
+    li.className = 'flex items-center gap-2 px-2 py-2 rounded cursor-pointer transition-colors';
     li.dataset.driver = d.driver_number;
+    if (String(d.driver_number) === String(selectedDriverNumber)) {
+        li.classList.add(
+            'bg-slate-700/70',
+            'border-1-2',
+            'border-white'
+        );
+    } else{
+        li.classList.add('hover:bg-slate-800/70');
+    }
+    li.addEventListener('click', () => {
+        selectedDriverNumber = d.driver_number;
+        renderLeaderboard(rows);
+        drawDots(playTime);
+    });
 
     const pos = document.createElement('span');
     pos.className = 'w-5 text-right text-slate-500';
